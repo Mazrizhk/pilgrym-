@@ -1,0 +1,354 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  password  String?
+  role      Role      @default(CUSTOMER)
+  phone     String?
+  avatar    String?
+  createdAt DateTime  @default(now())
+  bookings  Booking[]
+  messages  Message[]
+  agency    Agency?
+  reviews   Review[]
+  accounts  Account[]
+  sessions  Session[]
+}
+
+enum Role {
+  CUSTOMER
+  AGENCY
+  ADMIN
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Agency {
+  id                 String              @id @default(cuid())
+  userId             String              @unique
+  user               User                @relation(fields: [userId], references: [id])
+  name               String
+  slug               String              @unique
+  logo               String?
+  banner             String?
+  description        String?
+  phone              String
+  email              String
+  address            String
+  city               String
+  yearsInBusiness    Int                 @default(0)
+  verificationStatus VerificationStatus  @default(PENDING)
+  verifiedAt         DateTime?
+  documents          AgencyDocument[]
+  packages           Package[]
+  payouts            Payout[]
+  subscription       AgencySubscription?
+  bannerAds          BannerAd[]
+  rating             Float               @default(0)
+  totalReviews       Int                 @default(0)
+  socialWhatsapp     String?
+  socialFacebook     String?
+  socialInstagram    String?
+  bankAccountName    String?
+  bankAccountNumber  String?
+  bankName           String?
+  bankBranch         String?
+  createdAt          DateTime            @default(now())
+}
+
+enum VerificationStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+model AgencyDocument {
+  id         String       @id @default(cuid())
+  agencyId   String
+  agency     Agency       @relation(fields: [agencyId], references: [id])
+  type       DocumentType
+  fileUrl    String
+  status     DocStatus    @default(PENDING)
+  adminNote  String?
+  uploadedAt DateTime     @default(now())
+}
+
+enum DocStatus {
+  PENDING
+  APPROVED
+  NEEDS_RESUBMISSION
+}
+
+enum DocumentType {
+  BUSINESS_REGISTRATION
+  TOURISM_LICENSE
+  DIRECTOR_ID
+  BANK_DETAILS
+  OTHER
+}
+
+model Package {
+  id                   String             @id @default(cuid())
+  agencyId             String
+  agency               Agency             @relation(fields: [agencyId], references: [id])
+  title                String
+  slug                 String             @unique
+  description          String
+  shortDescription     String?
+  type                 PackageType
+  durationDays         Int
+  durationNights       Int
+  departureCity        String             @default("Colombo")
+  departureDate        DateTime
+  returnDate           DateTime
+  seatsTotal           Int
+  seatsAvailable       Int
+  pricePerPerson       Float
+  originalPrice        Float?
+  currency             String             @default("LKR")
+  status               PackageStatus      @default(DRAFT)
+  images               PackageImage[]
+  inclusions           PackageInclusion[]
+  itinerary            ItineraryDay[]
+  bookings             Booking[]
+  reviews              Review[]
+  hotelMakkah          String?
+  hotelMakkahStars     Int?
+  hotelMadinah         String?
+  hotelMadinahStars    Int?
+  hotelDistanceMakkah  String?
+  hotelDistanceMadinah String?
+  visaIncluded         Boolean            @default(true)
+  flightIncluded       Boolean            @default(true)
+  transportIncluded    Boolean            @default(true)
+  mealsIncluded        Boolean            @default(false)
+  featured             Boolean            @default(false)
+  publishedAt          DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+}
+
+enum PackageType {
+  UMRAH
+  HAJJ
+  UMRAH_PLUS_ZIYARAT
+  RAMADAN_UMRAH
+}
+
+enum PackageStatus {
+  DRAFT
+  ACTIVE
+  FULL
+  EXPIRED
+  ARCHIVED
+}
+
+model PackageImage {
+  id        String  @id @default(cuid())
+  packageId String
+  package   Package @relation(fields: [packageId], references: [id])
+  url       String
+  alt       String?
+  isPrimary Boolean @default(false)
+  order     Int     @default(0)
+}
+
+model PackageInclusion {
+  id        String  @id @default(cuid())
+  packageId String
+  package   Package @relation(fields: [packageId], references: [id])
+  label     String
+  included  Boolean @default(true)
+  icon      String?
+}
+
+model ItineraryDay {
+  id          String  @id @default(cuid())
+  packageId   String
+  package     Package @relation(fields: [packageId], references: [id])
+  dayNumber   Int
+  title       String
+  description String
+  location    String?
+}
+
+model Booking {
+  id               String        @id @default(cuid())
+  customerId       String
+  customer         User          @relation(fields: [customerId], references: [id])
+  packageId        String
+  package          Package       @relation(fields: [packageId], references: [id])
+  bookingRef       String        @unique
+  status           BookingStatus @default(PAID)
+  adults           Int
+  children         Int           @default(0)
+  totalAmount      Float
+  commissionAmount Float
+  agencyAmount     Float
+  stripePaymentId  String?
+  stripeSessionId  String?
+  notes            String?
+  internalNotes    String?
+  travelDate       DateTime
+  travellers       Json?
+  messages         Message[]
+  payouts          Payout[]      @relation("BookingPayouts")
+  dispute          Dispute?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+enum BookingStatus {
+  PAID
+  PROCESSING
+  CONFIRMED
+  COMPLETED
+  DISPUTED
+  REFUNDED
+  CANCELLED
+}
+
+model Payout {
+  id          String       @id @default(cuid())
+  agencyId    String
+  agency      Agency       @relation(fields: [agencyId], references: [id])
+  amount      Float
+  status      PayoutStatus @default(PENDING)
+  periodStart DateTime
+  periodEnd   DateTime
+  processedAt DateTime?
+  bookings    Booking[]    @relation("BookingPayouts")
+  heldReason  String?
+  createdAt   DateTime     @default(now())
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  HELD
+}
+
+model AgencySubscription {
+  id        String           @id @default(cuid())
+  agencyId  String           @unique
+  agency    Agency           @relation(fields: [agencyId], references: [id])
+  plan      SubscriptionPlan @default(FREE)
+  startDate DateTime
+  endDate   DateTime?
+  active    Boolean          @default(true)
+}
+
+enum SubscriptionPlan {
+  FREE
+  BASIC
+  PRO
+}
+
+model BannerAd {
+  id        String   @id @default(cuid())
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id])
+  imageUrl  String
+  linkUrl   String
+  duration  Int
+  startDate DateTime
+  endDate   DateTime
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  bookingId String
+  booking   Booking  @relation(fields: [bookingId], references: [id])
+  senderId  String
+  sender    User     @relation(fields: [senderId], references: [id])
+  content   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  packageId  String
+  package    Package  @relation(fields: [packageId], references: [id])
+  customerId String
+  customer   User     @relation(fields: [customerId], references: [id])
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+}
+
+model Dispute {
+  id         String        @id @default(cuid())
+  bookingId  String        @unique
+  booking    Booking       @relation(fields: [bookingId], references: [id])
+  raisedBy   String
+  reason     String
+  status     DisputeStatus @default(OPEN)
+  resolution String?
+  adminNote  String?
+  createdAt  DateTime      @default(now())
+  resolvedAt DateTime?
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED_CUSTOMER
+  RESOLVED_AGENCY
+  ESCALATED
+}
+
+model PlatformSettings {
+  id              String  @id @default(cuid())
+  commissionRate  Float   @default(0.05)
+  payoutCycleDays Int     @default(14)
+  platformName    String  @default("Pilgrym")
+  contactEmail    String  @default("hello@pilgrym.lk")
+  maintenanceMode Boolean @default(false)
+}
